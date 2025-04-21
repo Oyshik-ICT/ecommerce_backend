@@ -24,7 +24,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
 class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
-    queryset = Product.objects.all()
+    queryset = Product.objects.select_related("category")
 
     def get_permissions(self):
         if self.action in ["list", "retrieve"]:
@@ -37,6 +37,15 @@ class ProductViewSet(viewsets.ModelViewSet):
 class OrderViewSet(viewsets.ModelViewSet):
     serializer_class = OrderSerializer
     queryset = Order.objects.all()
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = super().get_queryset()
+        if not user.is_staff:
+            qs = qs.filter(user=user).prefetch_related('items__product')
+        elif self.request.method != 'PATCH':
+            qs = qs.prefetch_related('items__product')
+        return qs
     
     def get_permissions(self):
         if self.action in ['update', 'partial_update', 'destroy']:

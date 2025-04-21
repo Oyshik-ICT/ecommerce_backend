@@ -16,7 +16,7 @@ Including another URLconf
 """
 
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from api.views import UserViewSet, ProductViewSet, OrderViewSet
 from rest_framework_simplejwt.views import (
@@ -29,7 +29,9 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('silk/', include('silk.urls', namespace='silk'))
 ]
+
 
 routers = DefaultRouter()
 routers.register("users", UserViewSet)
