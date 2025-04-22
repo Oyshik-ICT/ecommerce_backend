@@ -77,7 +77,6 @@ class OrderSerializer(serializers.ModelSerializer):
 
     def update_quantity_for_create(self, product, quantity):
         product.stock = product.stock - quantity
-        # product.save(update_fields=['stock'])
 
     def update_quantity_for_update(self, previous_quantity, new_quantity, product_obj, product_quantity_update):
         if new_quantity == 0:

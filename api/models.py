@@ -2,6 +2,7 @@ from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 from django.contrib.auth.hashers import make_password
 import uuid
+from datetime import datetime
 
 class CustomUserManager(BaseUserManager):
     """Define a model manager for User model with no username field."""
@@ -88,6 +89,20 @@ class Order(models.Model):
     
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="items")
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField()
+
+    def sub_total(self):
+        return self.product.price * self.quantity
+
+class Cart(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="carts")
+    product = models.ManyToManyField(Product, through="CartItem", related_name="carts")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+class CartItem(models.Model):
+    cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name="cartitems")
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField()
 
