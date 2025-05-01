@@ -74,9 +74,9 @@ class Product(models.Model):
     
 class Order(models.Model):
     class StatusChoice(models.TextChoices):
-        PENDING = 'Pending'
-        CONFIRMED = 'Confirmed'
-        CANCELLED = 'Cancelled'
+        PENDING = 'Pending', 'Pending'
+        CONFIRMED = 'Confirmed', 'Confirmed'
+        CANCELLED = 'Cancelled', 'Cancelled'
 
     order_id = models.UUIDField(primary_key=True, default=uuid.uuid4)
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="orders")
@@ -96,6 +96,7 @@ class OrderItem(models.Model):
         return self.product.price * self.quantity
 
 class Cart(models.Model):
+    cart_id = models.UUIDField(primary_key=True, default=uuid.uuid4)
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="carts")
     product = models.ManyToManyField(Product, through="CartItem", related_name="carts")
     created_at = models.DateTimeField(auto_now_add=True)

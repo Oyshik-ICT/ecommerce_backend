@@ -43,7 +43,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         qs = super().get_queryset()
         if not user.is_staff:
             qs = qs.filter(user=user).prefetch_related('items__product')
-        elif self.request.method != 'PATCH':
+        elif self.request.method not in ['PATCH', 'DELETE']:
             qs = qs.prefetch_related('items__product')
         return qs
     

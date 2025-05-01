@@ -1,7 +1,6 @@
 from .models import CustomUser, Product, Order, OrderItem, Category
 from rest_framework import serializers
 from django.contrib.auth.hashers import make_password
-from django.db import connection
 
 class CustomUserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -75,21 +74,21 @@ class OrderSerializer(serializers.ModelSerializer):
             if item['product'].stock < item['quantity']:
                  raise serializers.ValidationError("You have to choose less quantity")
 
-    def update_quantity_for_create(self, product, quantity):
+    def update_stock_for_create(self, product, quantity):
         product.stock = product.stock - quantity
 
-    def update_quantity_for_update(self, previous_quantity, new_quantity, product_obj, product_quantity_update):
+    def update_stock_for_update(self, previous_quantity, new_quantity, product_obj, update_products_stock):
         if new_quantity == 0:
             raise serializers.ValidationError("You have to choose atleast 1 quantity")
         if previous_quantity > new_quantity:
             product_obj.stock += (previous_quantity - new_quantity)
-            product_quantity_update.append(product_obj)
+            update_products_stock.append(product_obj)
 
         else:
             if (new_quantity - previous_quantity) > product_obj.stock:
                 raise serializers.ValidationError("You have to choose less quantity")
             product_obj.stock -= (new_quantity - previous_quantity)
-            product_quantity_update.append(product_obj)
+            update_products_stock.append(product_obj)
 
 
     
@@ -111,7 +110,7 @@ class OrderSerializer(serializers.ModelSerializer):
                 )
             )
 
-            self.update_quantity_for_create(item['product'], item['quantity'])
+            self.update_stock_for_create(item['product'], item['quantity'])
             update_products_stock.append(item['product'])
 
         Product.objects.bulk_update(update_products_stock, ['stock'])
@@ -132,18 +131,19 @@ class OrderSerializer(serializers.ModelSerializer):
         if "items" in validated_data:
             items = validated_data['items']
             order_items = OrderItem.objects.filter(order=instance).select_related("product")
-            dict_order_item, item_to_create, item_to_update, product_quantity_update = {}, [], [], []
+            dict_order_item, item_to_create, item_to_update, update_products_stock = {}, [], [], []
 
             for order_item in order_items:
                 dict_order_item[order_item.product.id] = order_item
 
             for item in items:
                 if item["product"].id in dict_order_item:
-                    self.update_quantity_for_update(dict_order_item[item["product"].id].quantity, item["quantity"], item["product"], product_quantity_update)
+                    self.update_stock_for_update(dict_order_item[item["product"].id].quantity, item["quantity"], item["product"], update_products_stock)
                     dict_order_item[item["product"].id].quantity = item["quantity"]
                     item_to_update.append(dict_order_item[item["product"].id])
                     
                 else:
+                    self.quantity_validation([item])
                     item_to_create.append(
                         OrderItem(
                         order = instance,
@@ -152,8 +152,11 @@ class OrderSerializer(serializers.ModelSerializer):
                     )
                     )
 
-            if product_quantity_update:
-                Product.objects.bulk_update(product_quantity_update, ["stock"])
+                    self.update_stock_for_create(item['product'], item['quantity'])
+                    update_products_stock.append(item['product'])
+
+            if update_products_stock:
+                Product.objects.bulk_update(update_products_stock, ["stock"])
             if item_to_update:
                 OrderItem.objects.bulk_update(item_to_update, ["quantity"])
 
