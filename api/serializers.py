@@ -1,6 +1,8 @@
-from .models import CustomUser, Product, Order, OrderItem, Category
+from .models import CustomUser, Product, Order, OrderItem, Category, Cart, CartItem
 from rest_framework import serializers
 from django.contrib.auth.hashers import make_password
+from .validators import quantity_validation
+from django.utils import timezone
 
 class CustomUserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -67,12 +69,12 @@ class OrderSerializer(serializers.ModelSerializer):
 
 
     
-    def quantity_validation(self, items):
-        for item in items:
-            if item['quantity'] == 0:
-                raise serializers.ValidationError("You have to choose atleast 1 quantity")
-            if item['product'].stock < item['quantity']:
-                 raise serializers.ValidationError("You have to choose less quantity")
+    # def quantity_validation(self, items):
+    #     for item in items:
+    #         if item['quantity'] == 0:
+    #             raise serializers.ValidationError("You have to choose atleast 1 quantity")
+    #         if item['product'].stock < item['quantity']:
+    #              raise serializers.ValidationError("You have to choose less quantity")
 
     def update_stock_for_create(self, product, quantity):
         product.stock = product.stock - quantity
@@ -95,7 +97,7 @@ class OrderSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         items = validated_data.pop("items")
         
-        self.quantity_validation(items)
+        quantity_validation(items)
 
         instance = Order.objects.create(**validated_data)
 
@@ -143,7 +145,7 @@ class OrderSerializer(serializers.ModelSerializer):
                     item_to_update.append(dict_order_item[item["product"].id])
                     
                 else:
-                    self.quantity_validation([item])
+                    quantity_validation([item])
                     item_to_create.append(
                         OrderItem(
                         order = instance,
@@ -163,4 +165,105 @@ class OrderSerializer(serializers.ModelSerializer):
             if item_to_create:
                 OrderItem.objects.bulk_create(item_to_create)
 
+        return instance
+
+
+
+class CartItemSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = CartItem
+        fields = ["product", "quantity"]
+        
+
+class CartSerializer(serializers.ModelSerializer):
+    cartitems = CartItemSerializer(many=True)
+    total_money = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Cart
+        fields = ["cart_id", "user", "cartitems", "created_at", "updated_at", "total_money"]
+
+        extra_kwargs = {"cart_id":{"read_only": True}, "user":{"read_only": True}, "created_at":{"read_only": True}, "updated_at":{"read_only": True}}
+
+    def get_total_money(self, obj):
+        cart_items = obj.cartitems.all()
+        res = 0
+        
+        for cart_item in cart_items:
+            res += cart_item.sub_total()
+
+        return res
+
+    
+    def to_representation(self, instance):
+        if not hasattr(instance, '_prefetched_objects_cache') or 'cartitems' not in instance._prefetched_objects_cache:
+            instance = Cart.objects.filter(pk=instance.pk).prefetch_related('cartitems__product').first()
+        return super().to_representation(instance)
+    
+    def create(self, validated_data):
+        cartitems = validated_data.pop("cartitems")
+        quantity_validation(cartitems)
+        instance = Cart.objects.create(**validated_data)
+
+        cartitem_to_create = []
+
+        for cartitem in cartitems:
+            cartitem_to_create.append(
+                CartItem(
+                    cart = instance,
+                    product = cartitem.get("product"),
+                    quantity =cartitem.get("quantity")
+                )
+            )
+
+        CartItem.objects.bulk_create(cartitem_to_create)
+
+        return instance
+    
+
+    def check_stock_for_update_cartitem(self,  previous_quantity, new_quantity, product_obj):
+        if new_quantity == 0:
+            raise serializers.ValidationError("You have to choose atleast 1 quantity")
+        if previous_quantity < new_quantity and new_quantity > product_obj.stock:
+            raise serializers.ValidationError("You have to choose less quantity")
+
+    def update(self, instance, validated_data):
+        if 'cartitems' in validated_data:
+            cartitems = validated_data['cartitems']
+            cart_items = CartItem.objects.filter(cart=instance).select_related("product")
+            dict_cart_item, cartitem_to_create, cartitem_to_update = {}, [], []
+
+            for cart_item in cart_items:
+                dict_cart_item[cart_item.product.id] = cart_item
+
+            for cartitem in cartitems:
+                if cartitem["product"].id in dict_cart_item:
+                    if dict_cart_item[cartitem["product"].id].quantity != cartitem["quantity"]:
+                        self.check_stock_for_update_cartitem(dict_cart_item[cartitem["product"].id].quantity, cartitem["quantity"], cartitem["product"])
+                        dict_cart_item[cartitem["product"].id].quantity = cartitem["quantity"]
+                        cartitem_to_update.append(dict_cart_item[cartitem["product"].id])
+                    
+                    del dict_cart_item[cartitem["product"].id]
+                else:
+                    quantity_validation([cartitem])
+                    cartitem_to_create.append(
+                        CartItem(
+                        cart = instance,
+                        product = cartitem["product"],
+                        quantity = cartitem["quantity"]
+                    )
+                    )
+
+            if dict_cart_item:
+                CartItem.objects.filter(id__in=[v for v in dict_cart_item.values()]).delete()
+
+            if cartitem_to_update:
+                CartItem.objects.bulk_update(cartitem_to_update, ["quantity"])
+
+            if cartitem_to_create:
+                CartItem.objects.bulk_create(cartitem_to_create)
+
+        instance.updated_at = timezone.now()
+        instance.save(update_fields=['updated_at'])
         return instance

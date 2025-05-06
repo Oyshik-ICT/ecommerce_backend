@@ -1,6 +1,6 @@
 from django.shortcuts import render
-from .models import CustomUser, Product, Order
-from .serializers import CustomUserSerializer, ProductSerializer, OrderSerializer
+from .models import CustomUser, Product, Order, Cart
+from .serializers import CustomUserSerializer, ProductSerializer, OrderSerializer, CartSerializer
 from rest_framework import viewsets
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 
@@ -55,6 +55,23 @@ class OrderViewSet(viewsets.ModelViewSet):
 
         return super().get_permissions()
 
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+class CartViewSet(viewsets.ModelViewSet):
+    serializer_class = CartSerializer
+    queryset = Cart.objects.all()
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = super().get_queryset()
+        if not user.is_staff:
+            qs = qs.filter(user=user).prefetch_related('cartitems__product')
+        elif self.request.method not in ['PATCH', 'DELETE']:
+            qs = qs.prefetch_related('cartitems__product')
+        return qs
+    
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 

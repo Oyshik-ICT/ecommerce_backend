@@ -18,7 +18,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from api.views import UserViewSet, ProductViewSet, OrderViewSet
+from api.views import UserViewSet, ProductViewSet, OrderViewSet, CartViewSet
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -37,4 +37,5 @@ routers = DefaultRouter()
 routers.register("users", UserViewSet)
 routers.register("products", ProductViewSet)
 routers.register("orders", OrderViewSet)
+routers.register("carts", CartViewSet)
 urlpatterns += routers.urls
