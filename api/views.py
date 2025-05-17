@@ -66,10 +66,13 @@ class CartViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         qs = super().get_queryset()
+
         if not user.is_staff:
-            qs = qs.filter(user=user).prefetch_related('cartitems__product')
-        elif self.request.method not in ['PATCH', 'DELETE']:
+            qs = qs.filter(user=user)
+
+        if self.request.method not in ["DELETE", "PATCH"]:
             qs = qs.prefetch_related('cartitems__product')
+
         return qs
     
     def perform_create(self, serializer):

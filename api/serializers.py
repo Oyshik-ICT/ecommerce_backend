@@ -41,8 +41,42 @@ class ProductSerializer(serializers.ModelSerializer):
         instance.save(update_fields=update_fields)
 
         return instance
-    
+
+class BulkProductPrimaryKeyRelatedField(serializers.PrimaryKeyRelatedField):
+    """Optimized field that fetches all products in a single query"""
+    def __init__(self, *args, **kwargs):
+        # The name of the field in the parent serializer that contains items with product IDs
+        self.items_field_name = kwargs.pop('items_field_name', 'items')
+        super().__init__(*args, **kwargs)
+
+    def to_internal_value(self, data):
+        # Only do bulk fetch the first time this field is accessed
+        if not hasattr(self.root, '_prefetched_products'):
+            # Get all product IDs from the cartitems
+            product_ids = []
+            if (hasattr(self.root, 'initial_data') and 
+                self.items_field_name in self.root.initial_data):
+                
+                product_ids = [
+                    item['product'] 
+                    for item in self.root.initial_data[self.items_field_name] 
+                    if isinstance(item, dict) and 'product' in item
+                ]
+                
+                # Fetch all products at once
+                if product_ids:
+                    products = self.get_queryset().filter(id__in=product_ids)
+                    self.root._prefetched_products = {str(p.pk): p for p in products}
+        
+        # Use our cached product if available
+        if hasattr(self.root, '_prefetched_products') and str(data) in self.root._prefetched_products:
+            return self.root._prefetched_products[str(data)]
+        
+        # Fall back to default behavior
+        return super().to_internal_value(data)
+
 class OrderItemSerializer(serializers.ModelSerializer):
+    product = BulkProductPrimaryKeyRelatedField(queryset=Product.objects.all(), items_field_name='items')
 
     class Meta:
         model = OrderItem
@@ -68,13 +102,6 @@ class OrderSerializer(serializers.ModelSerializer):
         return res
 
 
-    
-    # def quantity_validation(self, items):
-    #     for item in items:
-    #         if item['quantity'] == 0:
-    #             raise serializers.ValidationError("You have to choose atleast 1 quantity")
-    #         if item['product'].stock < item['quantity']:
-    #              raise serializers.ValidationError("You have to choose less quantity")
 
     def update_stock_for_create(self, product, quantity):
         product.stock = product.stock - quantity
@@ -143,6 +170,8 @@ class OrderSerializer(serializers.ModelSerializer):
                     self.update_stock_for_update(dict_order_item[item["product"].id].quantity, item["quantity"], item["product"], update_products_stock)
                     dict_order_item[item["product"].id].quantity = item["quantity"]
                     item_to_update.append(dict_order_item[item["product"].id])
+
+                    del dict_order_item[item["product"].id]
                     
                 else:
                     quantity_validation([item])
@@ -157,19 +186,28 @@ class OrderSerializer(serializers.ModelSerializer):
                     self.update_stock_for_create(item['product'], item['quantity'])
                     update_products_stock.append(item['product'])
 
-            if update_products_stock:
-                Product.objects.bulk_update(update_products_stock, ["stock"])
             if item_to_update:
                 OrderItem.objects.bulk_update(item_to_update, ["quantity"])
 
             if item_to_create:
                 OrderItem.objects.bulk_create(item_to_create)
 
+            if dict_order_item:
+                for k, v in dict_order_item.items():
+                    v.product.stock += v.quantity
+                    update_products_stock.append(v.product)
+                
+                OrderItem.objects.filter(id__in=[v.id for v in dict_order_item.values()]).delete()
+
+            if update_products_stock:
+                Product.objects.bulk_update(update_products_stock, ["stock"])
         return instance
 
 
 
+    
 class CartItemSerializer(serializers.ModelSerializer):
+    product = BulkProductPrimaryKeyRelatedField(queryset=Product.objects.all(), items_field_name='cartitems')
 
     class Meta:
         model = CartItem
@@ -256,7 +294,7 @@ class CartSerializer(serializers.ModelSerializer):
                     )
 
             if dict_cart_item:
-                CartItem.objects.filter(id__in=[v for v in dict_cart_item.values()]).delete()
+                CartItem.objects.filter(id__in=[v.id for v in dict_cart_item.values()]).delete()
 
             if cartitem_to_update:
                 CartItem.objects.bulk_update(cartitem_to_update, ["quantity"])
