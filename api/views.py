@@ -1,8 +1,11 @@
 from django.shortcuts import render
 from .models import CustomUser, Product, Order, Cart
 from .serializers import CustomUserSerializer, ProductSerializer, OrderSerializer, CartSerializer
-from rest_framework import viewsets
+from rest_framework import viewsets, status
+from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
+from rest_framework.decorators import action
+from django.db import transaction
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = CustomUser.objects.all()
@@ -78,6 +81,51 @@ class CartViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
+    @action(detail=True, methods=['post'])
+    @transaction.atomic
+    def checkout(self, request, pk=None):
+        cart = self.get_object()
+        if cart.user != request.user:
+            return Response(
+                {"details": "You don't have permission to checkout this cart"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        cart_items = cart.cartitems.all()
+
+        if not cart_items.exists():
+            return Response(
+                {"details": "Cart is empty"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        order_data = {
+            "items":[
+                {
+                    "product": cart_item.product.id,
+                    "quantity": cart_item.quantity
+                }
+
+                for cart_item in cart_items
+            ]
+        }
+
+        serializer = OrderSerializer(data=order_data, context={'request': request})
+
+        if serializer.is_valid():
+            order = serializer.save(user=self.request.user)
+
+            cart.delete()
+
+            return Response(
+                OrderSerializer(order).data,
+                status=status.HTTP_201_CREATED
+            )
+
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
         
 
