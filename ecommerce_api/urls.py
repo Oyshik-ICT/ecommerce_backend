@@ -18,7 +18,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from api.views import UserViewSet, ProductViewSet, OrderViewSet, CartViewSet
+from api.views import UserViewSet, ProductViewSet, OrderViewSet, CartViewSet, CreatePaymentAPIView, PaymentSuccessAPIView, PaymentCancelAPIView
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -27,6 +27,9 @@ from rest_framework_simplejwt.views import (
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("pay/<uuid:order_id>/", CreatePaymentAPIView.as_view(), name="create-payment"),
+    path("paypal/success/", PaymentSuccessAPIView.as_view(), name="paypal-success"),
+    path("paypal/cancel/", PaymentCancelAPIView.as_view(), name="paypal-cancel"),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('silk/', include('silk.urls', namespace='silk'))

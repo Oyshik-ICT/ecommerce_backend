@@ -6,6 +6,9 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.decorators import action
 from django.db import transaction
+from rest_framework.views import APIView
+from django.shortcuts import get_object_or_404
+from .utils import create_payment, execute_payment
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = CustomUser.objects.all()
@@ -27,7 +30,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
 class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
-    queryset = Product.objects.select_related("category")
+    queryset = Product.objects.select_related("category").order_by("pk")
 
     def get_permissions(self):
         if self.action in ["list", "retrieve"]:
@@ -39,7 +42,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     
 class OrderViewSet(viewsets.ModelViewSet):
     serializer_class = OrderSerializer
-    queryset = Order.objects.all()
+    queryset = Order.objects.order_by("-created_at")
 
     def get_queryset(self):
         user = self.request.user
@@ -63,7 +66,7 @@ class OrderViewSet(viewsets.ModelViewSet):
 
 class CartViewSet(viewsets.ModelViewSet):
     serializer_class = CartSerializer
-    queryset = Cart.objects.all()
+    queryset = Cart.objects.order_by("-created_at")
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
@@ -128,4 +131,97 @@ class CartViewSet(viewsets.ModelViewSet):
         )
 
         
+class CreatePaymentAPIView(APIView):
+    permission_classes = [IsAuthenticated]
 
+    def post(self, request, order_id):
+        order = get_object_or_404(Order, order_id=order_id)
+
+        if order.user != request.user and not request.user.is_staff:
+            return Response(
+                {"details": "You don't have permission to pay for this order"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if order.payment_status in [Order.PaymentStatusChoice.PAID, Order.PaymentStatusChoice.PAYMENT_PENDING]:
+            return Response(
+                {"detail": f"This order is already {order.payment_status}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        protocol = 'https' if request.is_secure() else 'http'
+        domain = request.get_host()
+        base_url = f"{protocol}://{domain}"
+
+        payment_data = create_payment(request, order, base_url)
+
+        if payment_data["success"]:
+            order.payment_status = Order.PaymentStatusChoice.PAYMENT_PENDING
+            order.payment_id = payment_data["payment_id"]
+
+            order.save(update_fields=["payment_status", "payment_id"])
+
+            return Response({
+                "approval_url": payment_data["approval_url"],
+                "payment_id": payment_data["payment_id"]
+            })
+        
+        return Response(
+            {"detail": "Failed to create PayPal payment", "error": payment_data["error"]},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    
+class PaymentSuccessAPIView(APIView):
+
+    def get(self, request):
+        payment_id = request.GET.get("paymentId")
+        payer_id = request.GET.get("PayerID")
+        order_id = request.GET.get("order_id")
+
+        if not all([payment_id, payer_id, order_id]):
+            return Response(
+                {"details": "Missing required parameters"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        order = get_object_or_404(Order, order_id=order_id)
+        result = execute_payment(payment_id, payer_id)
+
+        if result["success"]:
+            order.payment_status = Order.PaymentStatusChoice.PAID
+            order.status = Order.StatusChoice.CONFIRMED
+
+            order.save(update_fields=["payment_status", "status"])
+
+            return Response({
+                "detail": "Payment completed successfully",
+                "order_id": order.order_id
+            })
+        
+        return Response(
+            {"detail": "Payment execution failed", "error": result["error"]},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    
+class PaymentCancelAPIView(APIView):
+
+    def get(self, request):
+        order_id = request.GET.get("order_id")
+
+        if not order_id:
+            return Response(
+                {"details": "Missing order_id parameters"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        order = get_object_or_404(Order, order_id=order_id)
+
+        if order.payment_status == Order.PaymentStatusChoice.PAYMENT_PENDING:
+            order.payment_status = Order.PaymentStatusChoice.UNPAID
+            order.payment_id = None
+
+            order.save(update_fields=["payment_status", "payment_id"])
+
+        return Response(
+            {"detail": "Payment was cancelled", "order_id": order.order_id},
+        )

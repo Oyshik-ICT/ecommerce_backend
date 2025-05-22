@@ -78,10 +78,17 @@ class Order(models.Model):
         CONFIRMED = 'Confirmed', 'Confirmed'
         CANCELLED = 'Cancelled', 'Cancelled'
 
+    class PaymentStatusChoice(models.TextChoices):
+        PAID = 'Paid', 'Paid'
+        UNPAID = 'Unpaid', 'Unpaid'
+        PAYMENT_PENDING = 'Payment Pending', 'Payment Pending'
+
     order_id = models.UUIDField(primary_key=True, default=uuid.uuid4)
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="orders")
     product = models.ManyToManyField(Product, through="OrderItem", related_name="orders")
     status = models.CharField(max_length=10, choices=StatusChoice.choices, default=StatusChoice.PENDING)
+    payment_status = models.CharField(max_length=15, choices=PaymentStatusChoice.choices, default=PaymentStatusChoice.UNPAID)
+    payment_id = models.CharField(max_length=100, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
