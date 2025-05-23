@@ -9,6 +9,9 @@ from django.db import transaction
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from .utils import create_payment, execute_payment
+from django_filters.rest_framework import DjangoFilterBackend
+from .filters import ProductFilter
+from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = CustomUser.objects.all()
@@ -31,6 +34,9 @@ class UserViewSet(viewsets.ModelViewSet):
 class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
     queryset = Product.objects.select_related("category").order_by("pk")
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = ProductFilter
+    throttle_classes = [UserRateThrottle, AnonRateThrottle]
 
     def get_permissions(self):
         if self.action in ["list", "retrieve"]:

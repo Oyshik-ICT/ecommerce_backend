@@ -35,6 +35,8 @@ INSTALLED_APPS = [
     "api.apps.ApiConfig",
     "rest_framework",
     "rest_framework_simplejwt",
+    "django_filters",
+    "drf_spectacular",
     "silk",
     "django.contrib.admin",
     "django.contrib.auth",
@@ -148,5 +150,10 @@ REST_FRAMEWORK = {
     ],
 
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
-    'PAGE_SIZE': 5
+    'PAGE_SIZE': 5,
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/day',
+        'user': '1000/day'
+    }
 }
