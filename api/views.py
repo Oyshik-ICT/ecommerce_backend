@@ -12,6 +12,7 @@ from .utils import create_payment, execute_payment
 from django_filters.rest_framework import DjangoFilterBackend
 from .filters import ProductFilter
 from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
+from drf_spectacular.utils import extend_schema
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = CustomUser.objects.all()
@@ -90,6 +91,8 @@ class CartViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
+
+    @extend_schema(request=None)
     @action(detail=True, methods=['post'])
     @transaction.atomic
     def checkout(self, request, pk=None):
