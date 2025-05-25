@@ -236,6 +236,45 @@ Content-Type: application/json
 }
 ```
 
+#### Convert Cart to Order (Checkout)
+
+To convert a cart to an order, use the checkout endpoint:
+
+```http
+POST /carts/{cart_id}/checkout/
+Authorization: Bearer your_token
+```
+
+**What happens during checkout:**
+1. Validates cart has items
+2. Checks stock availability for all items
+3. Creates new order with cart items
+4. Reduces product stock automatically
+5. Deletes the cart after successful order creation
+
+**Checkout Response:**
+```json
+{
+    "order_id": "550e8400-e29b-41d4-a716-446655440000",
+    "user": 1,
+    "items": [
+        {
+            "product": 1,
+            "quantity": 2
+        },
+        {
+            "product": 3,
+            "quantity": 1
+        }
+    ],
+    "status": "Pending",
+    "payment_status": "Unpaid",
+    "payment_id": null,
+    "total_money": "199.98",
+    "created_at": "2024-01-01T10:00:00Z"
+}
+```
+
 ### Orders (`/orders/`)
 
 | Method | Endpoint | Description | Permission |
@@ -269,7 +308,7 @@ Content-Type: application/json
 **Order Response:**
 ```json
 {
-    "order_id": "uuid-here",
+    "order_id": "550e8400-e29b-41d4-a716-446655440000",
     "user": 1,
     "items": [
         {
@@ -279,10 +318,42 @@ Content-Type: application/json
     ],
     "status": "Pending",
     "payment_status": "Unpaid",
+    "payment_id": null,
     "total_money": "99.98",
     "created_at": "2024-01-01T10:00:00Z"
 }
 ```
+
+#### Order After Successful Payment
+
+After completing PayPal payment, the order is automatically updated:
+
+```json
+{
+    "order_id": "550e8400-e29b-41d4-a716-446655440000",
+    "user": 1,
+    "items": [
+        {
+            "product": 1,
+            "quantity": 2
+        },
+        {
+            "product": 3,
+            "quantity": 1
+        }
+    ],
+    "status": "Confirmed",
+    "payment_status": "Paid",
+    "payment_id": "PAYID-MXHZFDY8U4567890A",
+    "total_money": "199.98",
+    "created_at": "2024-01-01T10:00:00Z"
+}
+```
+
+**Key Changes After Payment:**
+- `status`: Changes from "Pending" to "Confirmed"
+- `payment_status`: Changes from "Unpaid" to "Paid"
+- `payment_id`: PayPal payment ID is stored for reference
 
 ## PayPal Integration
 
@@ -290,11 +361,52 @@ The API integrates with PayPal for secure payment processing using the PayPal RE
 
 ### Payment Flow
 
-1. **Create Order**: User creates an order through the API
+1. **Create Order**: User creates an order through the API or converts cart to order
 2. **Initiate Payment**: User initiates payment for the order
 3. **PayPal Redirect**: User is redirected to PayPal for authentication
 4. **Payment Execution**: After approval, payment is executed automatically
-5. **Order Confirmation**: Order status is updated to "Confirmed"
+5. **Order Confirmation**: Order status is updated to "Confirmed" and payment_status to "Paid"
+
+### Complete Workflow Example
+
+#### Step 1: Create and Populate Cart
+```http
+POST /carts/
+Authorization: Bearer your_token
+Content-Type: application/json
+
+{
+    "cartitems": [
+        {"product": 1, "quantity": 2},
+        {"product": 3, "quantity": 1}
+    ]
+}
+```
+
+#### Step 2: Convert Cart to Order (Checkout)
+```http
+POST /carts/{cart_id}/checkout/
+Authorization: Bearer your_token
+```
+
+Response: Order with status "Pending" and payment_status "Unpaid"
+
+#### Step 3: Initiate Payment
+```http
+POST /pay/{order_id}/
+Authorization: Bearer your_token
+```
+
+Response: PayPal approval URL
+
+#### Step 4: User Completes Payment on PayPal
+User is redirected to PayPal, completes payment, and returns to success URL
+
+#### Step 5: Final Order State
+Order is automatically updated with:
+- status: "Confirmed"
+- payment_status: "Paid"  
+- payment_id: PayPal transaction ID
 
 ### Payment Endpoints
 
@@ -419,9 +531,4 @@ Access the admin interface at `http://localhost:8000/admin/` using your superuse
 ### Silk Profiler (Development Only)
 Monitor API performance at `http://localhost:8000/silk/`
 
-### API Testing
-Use tools like:
-- **Postman**: Import the OpenAPI schema
-- **curl**: Command-line testing
-- **HTTPie**: User-friendly HTTP client
 
