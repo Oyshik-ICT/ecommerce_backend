@@ -35,6 +35,9 @@ from api.views import (
     UserViewSet,
 )
 
+from django.conf import settings
+from django.conf.urls.static import static
+
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("pay/<uuid:order_id>/", CreatePaymentAPIView.as_view(), name="create-payment"),
@@ -56,6 +59,9 @@ urlpatterns = [
         name="redoc",
     ),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 
 routers = DefaultRouter()

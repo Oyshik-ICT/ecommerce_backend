@@ -60,7 +60,7 @@ class ProductSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ["id", "name", "description", "price", "stock", "category"]
+        fields = ["id", "name", "description", "price", "stock", "category", "image"]
 
     def update(self, instance, validated_data):
         """Update product with only changed fields."""
