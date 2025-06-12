@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from pathlib import Path
 import environ
 import os
+import sys
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -96,6 +97,13 @@ DATABASES = {
         'PORT': env('PORT'),
     }
 }
+
+# Use SQLite for tests
+if 'test' in sys.argv or 'test_coverage' in sys.argv:
+    DATABASES['default'] = {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': ':memory:'
+    }
 
 PAYPAL_MODE = env('PAYPAL_MODE')
 PAYPAL_CLIENT_ID = env('PAYPAL_CLIENT_ID')

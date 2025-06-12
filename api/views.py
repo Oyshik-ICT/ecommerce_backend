@@ -138,8 +138,9 @@ class CartViewSet(viewsets.ModelViewSet):
     def checkout(self, request, pk=None):
         """Convert cart to order and delete the cart."""
 
+        
+        cart = self.get_object()
         try:
-            cart = self.get_object()
             if cart.user != request.user:
                 return Response(
                     {"details": "You don't have permission to checkout this cart"},

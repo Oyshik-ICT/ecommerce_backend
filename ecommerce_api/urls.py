@@ -64,8 +64,8 @@ if settings.DEBUG:
 
 
 routers = DefaultRouter()
-routers.register("users", UserViewSet)
-routers.register("products", ProductViewSet)
-routers.register("orders", OrderViewSet)
-routers.register("carts", CartViewSet)
+routers.register("users", UserViewSet, basename="users")
+routers.register("products", ProductViewSet, basename="products")
+routers.register("orders", OrderViewSet, basename="orders")
+routers.register("carts", CartViewSet, basename="carts")
 urlpatterns += routers.urls
