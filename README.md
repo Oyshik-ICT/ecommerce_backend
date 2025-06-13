@@ -531,4 +531,14 @@ Access the admin interface at `http://localhost:8000/admin/` using your superuse
 ### Silk Profiler (Development Only)
 Monitor API performance at `http://localhost:8000/silk/`
 
+## Testing
+
+The API includes comprehensive test coverage for all major functionalities using Django's test framework.
+
+### Running Tests
+
+```bash
+# Run all tests
+python manage.py test
+
 
