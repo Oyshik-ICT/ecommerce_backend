@@ -12,7 +12,7 @@ from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from rest_framework.views import APIView
 
 from .filters import ProductFilter
-from .models import Cart, CustomUser, Order, Product
+from .models import Cart, CustomUser, Order, OrderItem, Product
 from .serializers import (
     CartSerializer,
     CustomUserSerializer,
@@ -100,6 +100,33 @@ class OrderViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"Error in OrderViewSet.perform_create: {str(e)}")
             raise
+    
+    def restore_product_stock(self, instance):
+        """Restores stock for products in the given order."""
+        
+        try:
+            order_items = instance.items.select_related("product")
+            update_products = []
+
+            for order_item in order_items:
+                order_item.product.stock += order_item.quantity
+                update_products.append(order_item.product)
+
+            Product.objects.bulk_update(update_products, fields=["stock"])
+        except Exception as e:
+            logger.error(f"Error restoring product stock: {str(e)}")
+            raise
+
+    def perform_destroy(self, instance):
+        try:
+            if instance.status != "Cancelled":
+                self.restore_product_stock(instance)
+
+            instance.delete()
+        except Exception as e:
+            logger.error(f"Error deleting order: {str(e)}")
+            raise
+
 
 
 class CartViewSet(viewsets.ModelViewSet):

@@ -156,6 +156,8 @@ class OrderSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             "order_id": {"read_only": True},
             "user": {"read_only": True},
+            "payment_id": {"read_only": True},
+            "payment_status": {"read_only": True},
             "created_at": {"read_only": True},
         }
 
@@ -254,6 +256,21 @@ class OrderSerializer(serializers.ModelSerializer):
         except Exception as e:
             logger.error(f"Error in order representation: {str(e)}")
             return super().to_representation(instance)
+        
+    def restore_product_stock(self, instance):
+        """Restores stock for all products in the given order."""
+        try:
+            order_items = instance.items.select_related("product")
+            update_products = []
+
+            for order_item in order_items:
+                order_item.product.stock += order_item.quantity
+                update_products.append(order_item.product)
+
+            Product.objects.bulk_update(update_products, fields=["stock"])
+        except Exception as e:
+            logger.error(f"Error restoring product stock: {str(e)}")
+            raise
 
     def update(self, instance, validated_data):
         """Update order with stock management."""
@@ -261,6 +278,9 @@ class OrderSerializer(serializers.ModelSerializer):
         try:
             if "status" in validated_data:
                 instance.status = validated_data.get("status")
+                if validated_data.get("status") == "Cancelled":
+                    self.restore_product_stock(instance)
+                    
                 instance.save(update_fields=["status"])
 
             if "items" in validated_data:
