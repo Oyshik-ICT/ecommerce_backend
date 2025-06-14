@@ -100,10 +100,10 @@ class OrderViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"Error in OrderViewSet.perform_create: {str(e)}")
             raise
-    
+
     def restore_product_stock(self, instance):
         """Restores stock for products in the given order."""
-        
+
         try:
             order_items = instance.items.select_related("product")
             update_products = []
@@ -126,7 +126,6 @@ class OrderViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"Error deleting order: {str(e)}")
             raise
-
 
 
 class CartViewSet(viewsets.ModelViewSet):
@@ -165,7 +164,6 @@ class CartViewSet(viewsets.ModelViewSet):
     def checkout(self, request, pk=None):
         """Convert cart to order and delete the cart."""
 
-        
         cart = self.get_object()
         try:
             if cart.user != request.user:

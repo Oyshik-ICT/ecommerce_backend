@@ -4,8 +4,7 @@ from django.contrib.auth.hashers import make_password
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import (Cart, CartItem, Category, CustomUser, Order, OrderItem,
-                     Product)
+from .models import Cart, CartItem, Category, CustomUser, Order, OrderItem, Product
 from .validators import quantity_validation
 
 logger = logging.getLogger(__name__)
@@ -115,7 +114,6 @@ class BulkProductPrimaryKeyRelatedField(serializers.PrimaryKeyRelatedField):
             ):
                 return self.root._prefetched_products[str(data)]
 
-            
             return super().to_internal_value(data)
         except Exception as e:
             logger.error(f"Error in bulk product field conversion: {str(e)}")
@@ -256,7 +254,7 @@ class OrderSerializer(serializers.ModelSerializer):
         except Exception as e:
             logger.error(f"Error in order representation: {str(e)}")
             return super().to_representation(instance)
-        
+
     def restore_product_stock(self, instance):
         """Restores stock for all products in the given order."""
         try:
@@ -280,7 +278,7 @@ class OrderSerializer(serializers.ModelSerializer):
                 instance.status = validated_data.get("status")
                 if validated_data.get("status") == "Cancelled":
                     self.restore_product_stock(instance)
-                    
+
                 instance.save(update_fields=["status"])
 
             if "items" in validated_data:
