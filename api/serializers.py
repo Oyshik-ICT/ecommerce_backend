@@ -36,7 +36,6 @@ class CustomUserSerializer(serializers.ModelSerializer):
         try:
             if "password" in validated_data:
                 validated_data["password"] = make_password(validated_data["password"])
-                update_fields.append("password")
 
             for attr, value in validated_data.items():
                 setattr(instance, attr, value)
